@@ -1,0 +1,36 @@
+name: despertador
+# Mantém o Brother (Render, plano gratuito) acordado: acessa /api/health a cada 4 minutos.
+# Cada execução dura ~55 min e o agendamento é de hora em hora, então atrasos do GitHub não deixam buraco.
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: despertador
+  cancel-in-progress: false
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - name: Acordar o Brother
+        run: |
+          for i in $(seq 1 14); do
+            curl -s -m 90 -o /dev/null -w "%{http_code} $(date -u +%H:%M)\n" https://brother-74vv.onrender.com/api/health || true
+            sleep 240
+          done
+  manter-ativo:
+    # O GitHub desliga agendamentos de repositórios sem atividade por 60 dias; um registro semanal evita isso.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Registro semanal
+        run: |
+          if [ "$(date -u +%u%H)" = "103" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            date -u > ultimo-registro.txt
+            git config user.name "despertador"
+            git config user.email "despertador@users.noreply.github.com"
+            git add ultimo-registro.txt && git commit -m "registro semanal" && git push || true
+          fi
